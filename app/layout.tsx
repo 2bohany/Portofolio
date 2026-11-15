@@ -59,7 +59,7 @@ const personJsonLd = {
   "@type": "Person",
   name: profile.name,
   jobTitle: profile.title,
-  image: `${siteUrl}/images/youssef.webp`,
+  image: `${siteUrl}/images/youssef-portrait.webp`,
   email: `mailto:${profile.email}`,
   address: {
     "@type": "PostalAddress",

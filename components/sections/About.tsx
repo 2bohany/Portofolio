@@ -39,15 +39,38 @@ export function About() {
           </Reveal>
 
           <Reveal tier="subtle" delay={0.1}>
-            <div className="relative mx-auto aspect-[4/5] w-full max-w-xs overflow-hidden border border-border bg-muted lg:mx-0">
-              <Image
-                src="/images/youssef.webp"
-                alt={`Portrait of ${profile.name}`}
-                fill
-                sizes="(min-width: 1024px) 320px, 80vw"
-                className="object-cover object-top"
+            <figure className="group relative mx-auto w-full max-w-xs lg:mx-0">
+              {/* Blue glow behind the frame */}
+              <div
+                aria-hidden
+                className="absolute -inset-4 bg-accent/25 opacity-70 blur-2xl transition-opacity duration-500 group-hover:opacity-100"
               />
-            </div>
+              <div className="relative aspect-[4/5] overflow-hidden border border-accent/40 bg-[#0b1220] shadow-[0_24px_60px_-24px_rgba(37,99,235,0.7)]">
+                <Image
+                  src="/images/youssef-portrait.webp"
+                  alt={`Portrait of ${profile.name}`}
+                  fill
+                  sizes="(min-width: 1024px) 320px, 80vw"
+                  className="object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#060a14] via-[#060a14]/70 to-transparent"
+                />
+                <figcaption className="absolute inset-x-0 bottom-0 p-5">
+                  <p className="text-base font-semibold text-white">{profile.name}</p>
+                  <p className="mt-1 flex items-center gap-2 text-xs font-medium text-blue-200">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_2px_rgba(96,165,250,0.8)]" />
+                    {profile.title} · {profile.location}
+                  </p>
+                </figcaption>
+              </div>
+              {/* Accent corner brackets */}
+              <span aria-hidden className="absolute -left-2 -top-2 h-6 w-6 border-l-2 border-t-2 border-accent" />
+              <span aria-hidden className="absolute -right-2 -top-2 h-6 w-6 border-r-2 border-t-2 border-accent" />
+              <span aria-hidden className="absolute -bottom-2 -left-2 h-6 w-6 border-b-2 border-l-2 border-accent" />
+              <span aria-hidden className="absolute -bottom-2 -right-2 h-6 w-6 border-b-2 border-r-2 border-accent" />
+            </figure>
             <p className="mt-8 text-sm font-semibold text-foreground">Positioned Across</p>
             <ul className="mt-4 space-y-2.5">
               {profile.positioning.map((item) => (
