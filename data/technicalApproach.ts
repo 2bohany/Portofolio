@@ -1,8 +1,6 @@
 /**
- * General technical approach — each principle is grounded in patterns that
- * actually recur across the projects in data/projects.ts, not generic
- * claims (no testing/CI claims are made because none of the projects
- * describe that work).
+ * General technical approach — each principle is grounded in work described
+ * in the CV and in data/projects.ts.
  */
 export interface ApproachPrinciple {
   title: string;
@@ -11,28 +9,28 @@ export interface ApproachPrinciple {
 
 export const approachPrinciples: ApproachPrinciple[] = [
   {
+    title: "Layered, Typed Backends",
+    description:
+      "APIs are built in NestJS or Express with clear layers (Controller, Service, Repository) and typed data access through Prisma or Mongoose, as in the Attendance Desktop App and the Online Examination System.",
+  },
+  {
+    title: "Secure by Default",
+    description:
+      "JWT and Passport authentication, bcrypt password hashing, role-based access control and DTO validation on the server, plus route guards on the client. In Electron, context isolation, sandboxing and a controlled preload IPC bridge.",
+  },
+  {
     title: "Reusable, Component-Driven UI",
     description:
-      "Interfaces are built from modular, reusable components — from custom React hooks in the Restaurant Dashboard to Angular's component architecture in the Hotel Management System and Rakebny Maak.",
+      "Interfaces are assembled from reusable components with React or Angular standalone components, with state handled by TanStack Query, Zustand or RxJS depending on the stack.",
   },
   {
-    title: "API-First Integration",
+    title: "Responsive and RTL-Ready",
     description:
-      "Frontends communicate with backends through REST APIs — NestJS services for the Hotel Management System and payment integration, and a mock API for the User Management Dashboard.",
+      "Every interface is built to work across breakpoints and in Arabic right-to-left layouts, as in RakebnyMaak and the Online Examination System.",
   },
   {
-    title: "Database-Driven Applications",
+    title: "Quality and Delivery",
     description:
-      "Data persistence is treated as a first-class concern, using Prisma over SQLite, MongoDB, and SQL Server depending on the project's needs.",
-  },
-  {
-    title: "Responsive by Default",
-    description:
-      "Every frontend project in this portfolio is built to work across breakpoints — from the RTL mobility interface of Rakebny Maak to e-commerce and dashboard layouts.",
-  },
-  {
-    title: "Design-to-Code Fidelity",
-    description:
-      "When a Figma design exists, implementation focuses on translating spacing, type, and layout accurately into functional code — as in the Electronics E-Commerce project.",
+      "Code is kept consistent with ESLint, Prettier and automated tests (Jest, Vitest), managed through Git/GitHub reviews, and shipped to production on Vercel or as a Windows installer.",
   },
 ];

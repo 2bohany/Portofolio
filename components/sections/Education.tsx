@@ -22,6 +22,7 @@ export function Education() {
                   <p className="text-base font-semibold text-foreground">{entry.degree}</p>
                   <p className="text-sm text-muted-foreground">
                     {entry.institution} · {entry.period}
+                    {entry.location ? ` · ${entry.location}` : null}
                   </p>
                   {entry.detail ? (
                     <p className="mt-2 text-sm text-muted-foreground">{entry.detail}</p>

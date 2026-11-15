@@ -1,7 +1,8 @@
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { StaggerGroup, StaggerItem } from "@/components/ui/Reveal";
-import { skillGroups } from "@/data/skills";
+import { Reveal, StaggerGroup, StaggerItem } from "@/components/ui/Reveal";
+import { Skills3D } from "@/components/three/Scene3D";
+import { skillGroups, sphereSkills } from "@/data/skills";
 
 export function Skills() {
   return (
@@ -10,8 +11,15 @@ export function Skills() {
         <SectionHeading
           eyebrow="Skills"
           title="Technical Skills"
-          description="Organized by area — only technologies I've actually used across the projects in this portfolio."
+          description="The stack I use day to day across web, desktop and ERP work."
         />
+
+        <Reveal tier="standard" className="mt-10 border border-border bg-card">
+          <Skills3D skills={sphereSkills} className="h-80 sm:h-[420px]" />
+          <p className="hidden border-t border-border px-4 py-2 text-center text-xs text-muted-foreground [@media(pointer:fine)]:block">
+            Drag to rotate · hover a label to pause
+          </p>
+        </Reveal>
 
         <StaggerGroup className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {skillGroups.map((group) => (

@@ -5,6 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { profile } from "@/data/profile";
+import { socialLinks } from "@/data/links";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -61,9 +62,10 @@ const personJsonLd = {
   email: `mailto:${profile.email}`,
   address: {
     "@type": "PostalAddress",
-    addressLocality: "Assiut",
+    addressLocality: "Cairo",
     addressCountry: "EG",
   },
+  sameAs: [socialLinks.github, socialLinks.linkedin],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { profile } from "@/data/profile";
 import { resumeUrl } from "@/data/links";
+import { Hero3D } from "@/components/three/Scene3D";
 
 export function Hero() {
   return (
     <section id="hero" className="border-b border-border">
-      <Container className="grid gap-12 py-20 sm:py-28 lg:grid-cols-[1fr_auto] lg:items-end">
+      <Container className="grid grid-cols-[minmax(0,1fr)] gap-12 py-20 sm:py-28 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:py-16">
         <Reveal tier="standard">
           <p className="text-sm font-semibold uppercase tracking-widest text-accent">
             {profile.location}
@@ -39,14 +40,7 @@ export function Hero() {
           </div>
         </Reveal>
 
-        <Reveal tier="subtle" delay={0.15} className="hidden lg:block">
-          <div
-            aria-hidden
-            className="flex h-40 w-40 items-center justify-center border border-border bg-card text-5xl font-bold text-foreground"
-          >
-            YD
-          </div>
-        </Reveal>
+        <Hero3D className="h-72 min-w-0 overflow-hidden sm:h-96 lg:mx-0 lg:h-[480px] lg:w-[480px]" />
       </Container>
     </section>
   );

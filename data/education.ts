@@ -1,13 +1,23 @@
-/**
- * No education details (institution, degree, dates) were provided.
- * Intentionally left empty rather than invented — the Education section
- * renders an honest "coming soon" state until this is filled in.
- */
 export interface EducationEntry {
   institution: string;
   degree: string;
   period: string;
+  location?: string;
   detail?: string;
 }
 
-export const educationEntries: EducationEntry[] = [];
+export const educationEntries: EducationEntry[] = [
+  {
+    institution: "Information Technology Institute (ITI)",
+    degree: "Professional Diploma in Web & User Interface Development",
+    period: "10/2024 – 07/2025",
+    location: "Assiut, Egypt",
+  },
+  {
+    institution: "Egyptian E-Learning University (EELU)",
+    degree: "Bachelor of Information Technology",
+    period: "06/2020 – 07/2024",
+    location: "Assiut, Egypt",
+    detail: "Cumulative Grade: Very Good",
+  },
+];

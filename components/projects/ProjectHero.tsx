@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { Project } from "@/types/project";
@@ -39,7 +40,20 @@ export function ProjectHero({ project }: { project: Project }) {
         <GithubLinkButton githubUrl={project.githubUrl} />
       </div>
 
-      <MediaPlaceholder label="Hero media coming soon" className="mt-10 h-72 w-full sm:h-96" />
+      {project.images[0] ? (
+        <div className="relative mt-10 aspect-[16/10] w-full overflow-hidden border border-border bg-muted">
+          <Image
+            src={project.images[0]}
+            alt={`${project.title} screenshot`}
+            fill
+            priority
+            sizes="(min-width: 1280px) 1200px, 100vw"
+            className="object-cover object-top"
+          />
+        </div>
+      ) : (
+        <MediaPlaceholder label="Hero media coming soon" className="mt-10 h-72 w-full sm:h-96" />
+      )}
     </Container>
   );
 }
