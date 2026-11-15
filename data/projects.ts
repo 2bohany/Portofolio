@@ -165,7 +165,7 @@ export const projects: Project[] = [
     ],
     images: ["/projects/attendance-desktop-app.jpg"],
     demoUrl: "https://attendance-app-ruddy-ten.vercel.app/",
-    githubUrl: "#",
+    githubUrl: "https://github.com/2bohany/Attendance_Desktop",
     featured: true,
   },
   {
