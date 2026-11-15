@@ -1,128 +1,445 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, OrbitControls } from "@react-three/drei";
-import type { Group, Mesh } from "three";
+import { Environment, Float, Lightformer, OrbitControls, Trail } from "@react-three/drei";
+import {
+  AdditiveBlending,
+  BackSide,
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  EdgesGeometry,
+  Float32BufferAttribute,
+  IcosahedronGeometry,
+  NormalBlending,
+  ShaderMaterial,
+  type Blending,
+  type Group,
+  type LineSegments,
+  type Mesh,
+  type MeshPhysicalMaterial,
+  type PointLight,
+  type Sprite,
+  type Texture,
+} from "three";
 import { useThemeColors } from "./useThemeColors";
 
 const finePointer = () => window.matchMedia("(pointer: fine)").matches;
 
-interface SceneProps {
+interface Palette {
+  accent: string;
+  glow: string;
+  foreground: string;
+  blending: Blending;
+  dark: boolean;
   animate: boolean;
+  glowMap: Texture;
 }
 
-function Core({ accent, foreground, animate }: { accent: string; foreground: string; animate: boolean }) {
-  const core = useRef<Mesh>(null);
-  const shell = useRef<Mesh>(null);
+/** Soft radial gradient used for halos, light heads and particles. */
+function useGlowTexture() {
+  return useMemo(() => {
+    const size = 128;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d")!;
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.25, "rgba(255,255,255,0.55)");
+    g.addColorStop(0.6, "rgba(255,255,255,0.12)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    return new CanvasTexture(canvas);
+  }, []);
+}
 
-  useFrame((_, delta) => {
+/* ---------------------------------------------------------------- core */
+
+function Core({ accent, glow, animate }: Palette) {
+  const mesh = useRef<Mesh>(null);
+  const material = useRef<MeshPhysicalMaterial>(null);
+
+  useFrame(({ clock }, delta) => {
     if (!animate) return;
-    if (core.current) {
-      core.current.rotation.x += delta * 0.25;
-      core.current.rotation.y += delta * 0.35;
+    const t = clock.elapsedTime;
+    if (mesh.current) {
+      mesh.current.rotation.x += delta * 0.22;
+      mesh.current.rotation.y += delta * 0.3;
     }
-    if (shell.current) {
-      shell.current.rotation.x -= delta * 0.1;
-      shell.current.rotation.y -= delta * 0.15;
-    }
+    // Slow "breathing" glow.
+    if (material.current) material.current.emissiveIntensity = 0.35 + Math.sin(t * 1.6) * 0.2;
   });
 
   return (
-    <group>
-      <mesh ref={core}>
-        <icosahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color={accent} flatShading metalness={0.35} roughness={0.3} />
-      </mesh>
-      <mesh ref={shell} scale={1.65}>
-        <icosahedronGeometry args={[1, 1]} />
-        <meshBasicMaterial color={foreground} wireframe transparent opacity={0.18} />
-      </mesh>
-    </group>
+    <mesh ref={mesh}>
+      <icosahedronGeometry args={[1, 0]} />
+      <meshPhysicalMaterial
+        ref={material}
+        color={accent}
+        emissive={glow}
+        emissiveIntensity={0.35}
+        metalness={0.75}
+        roughness={0.18}
+        clearcoat={1}
+        clearcoatRoughness={0.1}
+        flatShading
+      />
+    </mesh>
   );
 }
 
-function Rings({ accent, foreground, animate }: { accent: string; foreground: string; animate: boolean }) {
-  const group = useRef<Group>(null);
-  useFrame((_, delta) => {
-    if (animate && group.current) group.current.rotation.z += delta * 0.12;
+/** Fresnel "atmosphere": a rim of blue light around the core. */
+function Atmosphere({ glow, blending, dark }: Palette) {
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: {
+          uColor: { value: new Color(glow) },
+          uIntensity: { value: dark ? 0.5 : 0.45 },
+        },
+        vertexShader: /* glsl */ `
+          varying vec3 vNormal;
+          varying vec3 vView;
+          void main() {
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vNormal = normalize(normalMatrix * normal);
+            vView = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform vec3 uColor;
+          uniform float uIntensity;
+          varying vec3 vNormal;
+          varying vec3 vView;
+          void main() {
+            // x = 0 at the silhouette, 1 facing the camera. With this sphere
+            // scaled to ~1.9x the core, the glow peaks right at the core edge
+            // (x ~ 0.83) and falls off smoothly to zero at the outer edge.
+            float x = abs(dot(vNormal, vView));
+            float glow = pow(x, 5.0) * (1.0 - x) * 15.0;
+            gl_FragColor = vec4(uColor, glow * uIntensity);
+          }
+        `,
+        side: BackSide,
+        transparent: true,
+        depthWrite: false,
+        blending,
+      }),
+    [glow, blending, dark]
+  );
+
+  return (
+    <mesh scale={1.9}>
+      <sphereGeometry args={[1, 48, 48]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
+function Halo({ glow, blending, dark, animate, glowMap }: Palette) {
+  const sprite = useRef<Sprite>(null);
+  useFrame(({ clock }) => {
+    if (!animate || !sprite.current) return;
+    const s = 5.2 + Math.sin(clock.elapsedTime * 1.6) * 0.35;
+    sprite.current.scale.set(s, s, 1);
   });
+  return (
+    <sprite ref={sprite} scale={5.2}>
+      <spriteMaterial
+        map={glowMap}
+        color={glow}
+        transparent
+        opacity={dark ? 0.55 : 0.35}
+        depthWrite={false}
+        blending={blending}
+      />
+    </sprite>
+  );
+}
+
+/** Geodesic shell drawn as clean edges, with a light wave sweeping across it. */
+function Shell({ glow, foreground, blending, dark, animate }: Palette) {
+  const group = useRef<Group>(null);
+  const lines = useRef<LineSegments>(null);
+  const geometry = useMemo(() => new EdgesGeometry(new IcosahedronGeometry(1.75, 1)), []);
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uBase: { value: new Color(foreground) },
+          uGlow: { value: new Color(glow) },
+          uBaseAlpha: { value: dark ? 0.14 : 0.2 },
+        },
+        vertexShader: /* glsl */ `
+          varying vec3 vPos;
+          void main() {
+            vPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform float uTime;
+          uniform vec3 uBase;
+          uniform vec3 uGlow;
+          uniform float uBaseAlpha;
+          varying vec3 vPos;
+          void main() {
+            float wave = smoothstep(0.75, 1.0, sin(vPos.y * 2.2 + vPos.x * 0.8 - uTime * 1.8));
+            vec3 col = mix(uBase, uGlow, wave);
+            gl_FragColor = vec4(col, uBaseAlpha + wave * 0.75);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending,
+      }),
+    [foreground, glow, blending, dark]
+  );
+
+  useFrame(({ clock }, delta) => {
+    if (!animate) return;
+    if (lines.current) (lines.current.material as ShaderMaterial).uniforms.uTime.value = clock.elapsedTime;
+    if (group.current) {
+      group.current.rotation.y -= delta * 0.08;
+      group.current.rotation.x -= delta * 0.04;
+    }
+  });
+
   return (
     <group ref={group}>
-      <mesh rotation={[Math.PI / 2.4, 0, 0]}>
-        <torusGeometry args={[2.35, 0.012, 16, 128]} />
-        <meshBasicMaterial color={accent} transparent opacity={0.7} />
-      </mesh>
-      <mesh rotation={[Math.PI / 3, -Math.PI / 5, 0.5]}>
-        <torusGeometry args={[2.75, 0.008, 16, 128]} />
-        <meshBasicMaterial color={foreground} transparent opacity={0.25} />
-      </mesh>
+      <lineSegments ref={lines} geometry={geometry} material={material} />
     </group>
   );
 }
 
-const orbiterShapes = ["box", "octahedron", "tetrahedron", "box", "octahedron", "tetrahedron"] as const;
+/* --------------------------------------------------------------- orbits */
 
-function Orbiters({ accent, foreground, animate }: { accent: string; foreground: string; animate: boolean }) {
-  const group = useRef<Group>(null);
-  const items = useMemo(
-    () =>
-      orbiterShapes.map((shape, i) => {
-        const angle = (i / orbiterShapes.length) * Math.PI * 2;
-        const radius = 2.35 + (i % 2) * 0.4;
-        return {
-          shape,
-          position: [Math.cos(angle) * radius, Math.sin(angle * 2) * 0.5, Math.sin(angle) * radius] as const,
-          scale: 0.16 + (i % 3) * 0.05,
-          useAccent: i % 2 === 0,
-        };
-      }),
-    []
+interface OrbitSpec {
+  radius: number;
+  rotation: [number, number, number];
+  speed: number;
+  offset: number;
+}
+
+const orbits: OrbitSpec[] = [
+  { radius: 2.4, rotation: [Math.PI / 2.4, 0, 0], speed: 0.7, offset: 0 },
+  { radius: 2.85, rotation: [Math.PI / 3, -Math.PI / 5, 0.5], speed: -0.45, offset: 2 },
+  { radius: 2.15, rotation: [-Math.PI / 2.8, Math.PI / 4, -0.3], speed: 0.9, offset: 4 },
+];
+
+function Comet({
+  orbit,
+  glow,
+  blending,
+  animate,
+  glowMap,
+  showTrail,
+}: Palette & { orbit: OrbitSpec; showTrail: boolean }) {
+  const head = useRef<Mesh>(null);
+  // Start on the orbit so the trail never streaks in from the origin.
+  const initial: [number, number, number] = [
+    Math.cos(orbit.offset) * orbit.radius,
+    Math.sin(orbit.offset) * orbit.radius,
+    0,
+  ];
+  useFrame(({ clock }) => {
+    if (!head.current) return;
+    const t = (animate ? clock.elapsedTime : 0) * orbit.speed + orbit.offset;
+    head.current.position.set(Math.cos(t) * orbit.radius, Math.sin(t) * orbit.radius, 0);
+  });
+  const light = (
+    <mesh ref={head} position={initial}>
+      <sphereGeometry args={[0.035, 12, 12]} />
+      <meshBasicMaterial color="#ffffff" />
+      <sprite scale={0.55}>
+        <spriteMaterial map={glowMap} color={glow} transparent depthWrite={false} blending={blending} />
+      </sprite>
+    </mesh>
   );
+  if (!showTrail) return light;
+  return (
+    <Trail width={0.9} length={5} color={glow} attenuation={(w) => w * w} decay={1.5}>
+      {light}
+    </Trail>
+  );
+}
+
+function Orbits(props: Palette) {
+  const { glow, foreground, dark, animate } = props;
+  // Wait for the entrance animation to settle before drawing trails, otherwise
+  // the fast scale/rotation of the first frames leaves jagged streaks.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (!animate) return;
+    const id = setTimeout(() => setSettled(true), 1800);
+    return () => clearTimeout(id);
+  }, [animate]);
+  return (
+    <>
+      {orbits.map((orbit, i) => (
+        <group key={i} rotation={orbit.rotation}>
+          <mesh>
+            <torusGeometry args={[orbit.radius, 0.006, 8, 160]} />
+            <meshBasicMaterial
+              color={i === 1 ? foreground : glow}
+              transparent
+              opacity={i === 1 ? (dark ? 0.18 : 0.22) : 0.45}
+              depthWrite={false}
+            />
+          </mesh>
+          <Comet {...props} orbit={orbit} showTrail={animate && settled} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** Blue point lights circling the core so highlights sweep across its facets. */
+function MovingLights({ glow, animate }: Palette) {
+  const a = useRef<PointLight>(null);
+  const b = useRef<PointLight>(null);
+  useFrame(({ clock }) => {
+    const t = animate ? clock.elapsedTime : 0.8;
+    a.current?.position.set(Math.cos(t * 0.8) * 2.6, Math.sin(t * 0.6) * 1.2, Math.sin(t * 0.8) * 2.6);
+    b.current?.position.set(Math.cos(-t * 0.6 + 2) * 2.4, Math.cos(t * 0.5) * 1.6, Math.sin(-t * 0.6 + 2) * 2.4);
+  });
+  return (
+    <>
+      <pointLight ref={a} color={glow} intensity={18} distance={8} decay={2} />
+      <pointLight ref={b} color="#7dd3fc" intensity={10} distance={8} decay={2} />
+    </>
+  );
+}
+
+/* ------------------------------------------------------------ particles */
+
+function Particles({ glow, blending, dark, animate, glowMap }: Palette) {
+  const points = useRef<Group>(null);
+  const geometry = useMemo(() => {
+    const count = 420;
+    const positions = new Float32Array(count * 3);
+    // Deterministic pseudo-random so SSR/hydration and re-renders are stable.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < count; i++) {
+      const r = 2.2 + rand() * 3.2;
+      const theta = rand() * Math.PI * 2;
+      const phi = Math.acos(2 * rand() - 1);
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.cos(phi) * 0.75;
+      positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    const g = new BufferGeometry();
+    g.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    return g;
+  }, []);
 
   useFrame((_, delta) => {
-    if (animate && group.current) group.current.rotation.y += delta * 0.3;
+    if (!animate || !points.current) return;
+    points.current.rotation.y += delta * 0.03;
+    points.current.rotation.x += delta * 0.01;
   });
 
   return (
-    <group ref={group} rotation={[Math.PI / 12, 0, 0]}>
-      {items.map((item, i) => (
-        <Float key={i} speed={animate ? 2 : 0} rotationIntensity={1.2} floatIntensity={0.6}>
-          <mesh position={[...item.position]} scale={item.scale}>
-            {item.shape === "box" ? (
-              <boxGeometry args={[1, 1, 1]} />
-            ) : item.shape === "octahedron" ? (
+    <group ref={points}>
+      <points geometry={geometry}>
+        <pointsMaterial
+          map={glowMap}
+          color={glow}
+          size={0.09}
+          sizeAttenuation
+          transparent
+          opacity={dark ? 0.85 : 0.6}
+          depthWrite={false}
+          blending={blending}
+        />
+      </points>
+    </group>
+  );
+}
+
+/* ------------------------------------------------------------ satellites */
+
+const satellites = [
+  { pos: [2.3, 1.1, 0.6], shape: "octa", scale: 0.17 },
+  { pos: [-2.4, -0.9, 0.4], shape: "tetra", scale: 0.2 },
+  { pos: [-1.6, 1.5, -1.2], shape: "box", scale: 0.13 },
+  { pos: [1.7, -1.5, -0.8], shape: "octa", scale: 0.12 },
+] as const;
+
+function Satellites({ accent, glow, animate }: Palette) {
+  return (
+    <>
+      {satellites.map((s, i) => (
+        <Float key={i} speed={animate ? 1.8 : 0} rotationIntensity={1.4} floatIntensity={0.8}>
+          <mesh position={[...s.pos]} scale={s.scale}>
+            {s.shape === "octa" ? (
               <octahedronGeometry args={[1, 0]} />
-            ) : (
+            ) : s.shape === "tetra" ? (
               <tetrahedronGeometry args={[1, 0]} />
+            ) : (
+              <boxGeometry args={[1, 1, 1]} />
             )}
-            <meshStandardMaterial
-              color={item.useAccent ? accent : foreground}
+            <meshPhysicalMaterial
+              color={accent}
+              emissive={glow}
+              emissiveIntensity={0.5}
+              metalness={0.8}
+              roughness={0.2}
+              clearcoat={1}
               flatShading
-              metalness={0.2}
-              roughness={0.4}
             />
           </mesh>
         </Float>
       ))}
-    </group>
+    </>
   );
 }
 
-/** Tilts the whole scene gently toward the pointer. */
-function PointerTilt({ children, animate }: { children: React.ReactNode; animate: boolean }) {
+/* ------------------------------------------------------------- framing */
+
+/** Eased scale-in on mount, then a gentle tilt toward the pointer. */
+function Rig({ children, animate }: { children: React.ReactNode; animate: boolean }) {
   const group = useRef<Group>(null);
-  useFrame(({ pointer }, delta) => {
-    if (!animate || !group.current) return;
-    const k = Math.min(1, delta * 3);
-    group.current.rotation.y += (pointer.x * 0.35 - group.current.rotation.y) * k;
-    group.current.rotation.x += (-pointer.y * 0.25 - group.current.rotation.x) * k;
+  const start = useRef<number | null>(null);
+
+  useFrame(({ clock, pointer }, delta) => {
+    const g = group.current;
+    if (!g) return;
+    if (!animate) {
+      g.scale.setScalar(1);
+      return;
+    }
+    if (start.current === null) start.current = clock.elapsedTime;
+    const p = Math.min(1, (clock.elapsedTime - start.current) / 1.6);
+    const eased = 1 - Math.pow(1 - p, 4);
+    g.scale.setScalar(0.55 + 0.45 * eased);
+    const k = Math.min(1, delta * 2.5);
+    g.rotation.y += (pointer.x * 0.4 + (1 - eased) * -1.2 - g.rotation.y) * k;
+    g.rotation.x += (-pointer.y * 0.25 - g.rotation.x) * k;
   });
+
   return <group ref={group}>{children}</group>;
 }
 
-export default function HeroScene({ animate }: SceneProps) {
-  const { accent, foreground } = useThemeColors();
+export default function HeroScene({ animate }: { animate: boolean }) {
+  const { accent, foreground, dark } = useThemeColors();
+  const glowMap = useGlowTexture();
+
+  const palette: Palette = {
+    accent,
+    // Brighter electric blue for emissive light; deeper in light mode for contrast.
+    glow: dark ? "#3b82f6" : "#2563eb",
+    foreground,
+    blending: dark ? AdditiveBlending : NormalBlending,
+    dark,
+    animate,
+    glowMap,
+  };
 
   return (
     <Canvas
@@ -132,15 +449,31 @@ export default function HeroScene({ animate }: SceneProps) {
       gl={{ antialias: true, alpha: true }}
       aria-hidden
     >
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[4, 5, 6]} intensity={1.6} />
-      <directionalLight position={[-5, -3, -4]} intensity={0.5} color={accent} />
-      <PointerTilt animate={animate}>
-        <Core accent={accent} foreground={foreground} animate={animate} />
-        <Rings accent={accent} foreground={foreground} animate={animate} />
-        <Orbiters accent={accent} foreground={foreground} animate={animate} />
-      </PointerTilt>
-      {finePointer() ? <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={0.6} /> : null}
+      <ambientLight intensity={dark ? 0.25 : 0.55} />
+      <directionalLight position={[4, 5, 6]} intensity={dark ? 1.2 : 1.8} />
+
+      {/* Local studio lighting for metallic reflections (no network fetch). */}
+      <Environment resolution={64}>
+        <Lightformer form="ring" intensity={3} color="#60a5fa" position={[0, 3, -4]} scale={4} />
+        <Lightformer form="rect" intensity={2} color="#ffffff" position={[-4, 1, 2]} scale={[3, 1, 1]} />
+        <Lightformer form="rect" intensity={2.5} color="#1d4ed8" position={[4, -2, 2]} scale={[2, 2, 1]} />
+      </Environment>
+
+      <MovingLights {...palette} />
+
+      <Rig animate={animate}>
+        <Halo {...palette} />
+        <Core {...palette} />
+        <Atmosphere {...palette} />
+        <Shell {...palette} />
+        <Orbits {...palette} />
+        <Satellites {...palette} />
+        <Particles {...palette} />
+      </Rig>
+
+      {finePointer() ? (
+        <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={0.6} />
+      ) : null}
     </Canvas>
   );
 }

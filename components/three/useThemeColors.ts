@@ -8,6 +8,7 @@ export interface ThemeColors {
   foreground: string;
   muted: string;
   font: string;
+  dark: boolean;
 }
 
 const fallback: ThemeColors = {
@@ -15,6 +16,7 @@ const fallback: ThemeColors = {
   foreground: "#09090b",
   muted: "#475569",
   font: "sans-serif",
+  dark: false,
 };
 
 /** Reads the site's CSS color tokens so 3D scenes match the active theme. */
@@ -32,6 +34,7 @@ export function useThemeColors(): ThemeColors {
         foreground: read("--foreground", fallback.foreground),
         muted: read("--muted-foreground", fallback.muted),
         font: getComputedStyle(document.body).fontFamily || fallback.font,
+        dark: resolvedTheme === "dark",
       });
     });
     return () => cancelAnimationFrame(id);
