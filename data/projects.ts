@@ -15,7 +15,7 @@ export const projects: Project[] = [
     slug: "exam-system",
     title: "Online Examination System",
     category: ["Full-Stack", "Education"],
-    status: "Completed",
+    status: "Live",
     tagline: "A MEAN-stack exam platform for students and teachers, with timed exams and result analytics.",
     description:
       "A full-stack online examination platform for students and teachers, with role-based authentication, a teacher dashboard for building exams, and timed student exams with detailed results. The interface is an animated, responsive Arabic RTL design.",
@@ -48,11 +48,8 @@ export const projects: Project[] = [
       { label: "Mongoose", detail: "Schemas and models" },
       { label: "MongoDB", detail: "Persistent storage" },
     ],
-    images: [],
-    // Live at https://exam-system-cixevey52-joo-8b75.vercel.app/login, but that Vercel
-    // deployment is behind Vercel Authentication, so visitors hit a Vercel login page.
-    // Swap the URL back in once Deployment Protection is turned off for the project.
-    demoUrl: "#",
+    images: ["/projects/exam-system.jpg"],
+    demoUrl: "https://exam-system-joo-8b75.vercel.app/login",
     githubUrl: "#",
     featured: true,
   },
